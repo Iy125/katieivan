@@ -1,12 +1,30 @@
 // Service worker: makes launches after the first near-instant and lets the app shell open offline.
 // VERSION must be bumped when icons, manifest or the SDK version change (index.html itself is network-first).
-const VERSION = 'v4';
+const VERSION = 'v5';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png'];
 const SDK = [
   'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js',
   'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
 ];
+
+// ---- Web push (Firebase Cloud Messaging). Harmless if push is not configured. ----
+try {
+  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js', 'https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+  firebase.initializeApp({ apiKey: "AIzaSyD9CeCzFfNg5we7Jh8Tk8M1Ww2vA8f90_4", projectId: "splitwise-ebf16", messagingSenderId: "730997287902", appId: "1:730997287902:web:c26de72340918992cb8b4f" });
+  const messaging = firebase.messaging();
+  // The Cloud Function sends data-only messages so this handler controls what is shown (and nothing is shown twice).
+  messaging.onBackgroundMessage(m => {
+    const d = m.data || {};
+    return self.registration.showNotification(d.title || 'Ledger', { body: d.body || '', icon: './icon-192.png', badge: './icon-192.png', tag: d.tag || 'ledger', data: { url: d.url || './' } });
+  });
+} catch (e) { /* messaging unavailable in this browser */ }
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    const open = list.find(c => 'focus' in c); return open ? open.focus() : self.clients.openWindow(e.notification.data?.url || './');
+  }));
+});
 
 self.addEventListener('install', e => {
   e.waitUntil((async () => {

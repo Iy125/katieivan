@@ -23,6 +23,11 @@ service cloud.firestore {
         allow create, update: if signedIn() && validHid(hid) && validExpense();
         allow delete:         if signedIn() && validHid(hid);
       }
+      match /devices/{token} {
+        allow get, list:      if signedIn() && validHid(hid);
+        allow create, update: if signedIn() && validHid(hid) && request.resource.data.person in [0, 1] && token.size() <= 512;
+        allow delete:         if signedIn() && validHid(hid);
+      }
       match /recurring/{id} {
         allow get, list:      if signedIn() && validHid(hid);
         allow create, update: if signedIn() && validHid(hid) && validRecurring();

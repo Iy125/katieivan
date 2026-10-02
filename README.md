@@ -7,7 +7,9 @@ Files:
 - `index.html` – the whole app (UI + logic). Edit the `FIREBASE_CONFIG` block near the bottom.
 - `firestore.rules` – Firestore security rules (contains the two allowed Gmail addresses). Paste into the Firebase console.
 - `manifest.webmanifest`, `icon.svg`, `icon-180.png`, `icon-192.png`, `icon-512.png` – home-screen app metadata and icons (iOS requires the PNG apple-touch-icon).
-- `sw.js` – service worker. Caches the app shell and the Firebase SDK so launches after the first are near-instant and the app opens offline. `index.html` is fetched network-first, so edits to it appear on the next launch without any bump; **bump `VERSION` in `sw.js` when you change the icons, manifest, or the Firebase SDK version** (those are cached until the version changes).
+- `functions/` – Cloud Function that sends a push notification to the other person when an expense is added (optional; see Notifications).
+- `firebase.json`, `.firebaserc` – Firebase deploy configuration: Hosting serves this folder, rules and the function deploy from here.
+- `sw.js` – service worker (also receives push notifications). Caches the app shell and the Firebase SDK so launches after the first are near-instant and the app opens offline. `index.html` is fetched network-first, so edits to it appear on the next launch without any bump; **bump `VERSION` in `sw.js` when you change the icons, manifest, or the Firebase SDK version** (those are cached until the version changes).
 
 ## How it works
 
@@ -29,13 +31,20 @@ Files:
 
 ### 2. Deploy to Firebase Hosting
 
-From the folder containing these files, with the Firebase CLI installed and logged in:
+One-time on a computer: install Node.js (LTS) from nodejs.org, then in a terminal:
 
 ```
-firebase deploy --only hosting
+npm install -g firebase-tools
+firebase login
 ```
 
-(`firebase.json` should point `public` at this folder, or copy the files into the folder it points at.) The site is at `https://splitwise-ebf16.web.app`.
+Then, from this folder (the one containing `firebase.json`):
+
+```
+firebase deploy --only hosting,firestore
+```
+
+That publishes the site to `https://splitwise-ebf16.web.app` and the rules in one go. Repeat the same command after any change.
 
 Sign-in uses the hosting domain as its auth domain (set automatically in `index.html` when served from `*.web.app` / `*.firebaseapp.com`), which keeps the Google sign-in flow same-origin — this is what makes it reliable on iPhone.
 
@@ -45,6 +54,17 @@ Sign-in uses the hosting domain as its auth domain (set automatically in `index.
 2. Katie opens the same URL → **Continue with Google** → `katiekwong96@gmail.com`. Any other Google account sees "not registered for this ledger".
 3. On each phone: Safari share button → **Add to Home Screen**. Launch from the home-screen icon from then on – it runs full-screen and stays signed in. (The home-screen app has its own storage, so it asks you to sign in once more on first launch.)
 4. **Recurring** tab → add rent, utilities, etc. with the day of month they are paid and who pays. They post automatically from the first month you set.
+
+## Notifications (optional)
+
+Two levels:
+
+- **In-app notice** – works out of the box: while the app is open, a toast appears when the other person adds an expense or a recurring item posts.
+- **Push notifications** (phone locked / app closed) – needs three one-off steps because a web page cannot push to another phone by itself; a small Cloud Function does the sending.
+  1. Firebase console → **Project settings → Cloud Messaging → Web Push certificates → Generate key pair**. Copy the key into `VAPID_KEY` in `index.html`.
+  2. Firebase console → **Upgrade** to the Blaze plan (Cloud Functions require it; this function's usage is far inside the free allowance, so the expected bill is £0 — set a budget alert anyway).
+  3. In this folder: `cd functions && npm install && cd ..` then `firebase deploy`. This deploys hosting, rules and the function together.
+  Then on each phone, from the **home-screen app** (iOS requires this for web push, iOS 16.4+): ⚙ Settings → **Enable notifications on this phone** → Allow. Each phone registers itself; the function notifies every registered device except the person who made the entry. Stale devices are cleaned up automatically.
 
 ## Daily use
 
