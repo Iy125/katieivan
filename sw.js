@@ -1,6 +1,6 @@
 // Service worker: makes launches after the first near-instant and lets the app shell open offline.
 // VERSION must be bumped when icons, manifest or the SDK version change (index.html itself is network-first).
-const VERSION = 'v3';
+const VERSION = 'v4';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png'];
 const SDK = [
   'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js',
@@ -29,8 +29,8 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
-  // Never touch Firestore / Auth traffic.
-  if (url.hostname.endsWith('googleapis.com') || url.hostname.endsWith('firebaseapp.com')) return;
+  // Never touch Firestore / Auth traffic, including Firebase Hosting's reserved /__/ auth handler on this origin.
+  if (url.hostname.endsWith('googleapis.com') || url.hostname.endsWith('firebaseapp.com') || url.hostname.endsWith('google.com') || url.pathname.startsWith('/__/')) return;
 
   const isShellPage = e.request.mode === 'navigate' || (url.origin === location.origin && (url.pathname.endsWith('/') || url.pathname.endsWith('/index.html')));
   if (isShellPage) {

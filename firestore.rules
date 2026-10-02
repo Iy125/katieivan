@@ -2,16 +2,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // A ledger lives at /households/{hid}, hid = SHA-256(passphrase) as 64 hex chars.
-    // Any signed-in (anonymous) user may GET/CREATE/UPDATE a ledger whose id they know; nobody may LIST ledgers.
-    // Security rests on the passphrase being long and unguessable (2^256 id space).
-    //
-    // RECOMMENDED after first run: pin your single ledger by replacing `validHid(hid)` below with
-    //   hid == '<your 64-hex ledger id>'   (shown under ⚙ Settings → Ledger id; first 8 chars there, full id in
-    //   localStorage key `ledger.hid`). Then nobody can create junk ledgers in your project. Keep the real hash in the
-    //   Firebase console only, not in the public repo.
-    function validHid(hid) { return hid.matches('^[0-9a-f]{64}$'); }
-    function signedIn() { return request.auth != null; }
+    // Single household ledger at /households/main. Only the two Google accounts below may read or write it.
+    // Gmail ignores dots in addresses; both spellings are listed in case the account's canonical form differs.
+    function allowedUser() {
+      return request.auth != null
+          && request.auth.token.email_verified == true
+          && request.auth.token.email.lower() in ['ivan.yang94@gmail.com', 'ivanyang94@gmail.com', 'katiekwong96@gmail.com'];
+    }
+    function validHid(hid) { return hid == 'main'; }
+    function signedIn() { return allowedUser(); }
 
     match /households/{hid} {
       allow get:    if signedIn() && validHid(hid);

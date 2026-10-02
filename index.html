@@ -45,7 +45,7 @@ body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:17px/1.
 input,textarea{-webkit-user-select:text;user-select:text}
 button,input,select,textarea{font:inherit;color:inherit;margin:0}
 button{border:0;background:none;padding:0;cursor:pointer;text-align:inherit;-webkit-touch-callout:none}
-.hero .amt,.row .end .a,.tile .v,#d-body .num,#cfg-hid,.amount input{-webkit-user-select:text;user-select:text}
+.hero .amt,.row .end .a,.tile .v,#d-body .num,#cfg-email,.amount input{-webkit-user-select:text;user-select:text}
 body.locked{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 input,select{width:100%;min-height:48px;padding:12px 14px;border:0;border-radius:var(--r-ctl);background:var(--fill);color:var(--ink);font-size:17px;outline:none;appearance:none;-webkit-appearance:none}
 input:focus{box-shadow:0 0 0 2px var(--accent) inset}
@@ -307,19 +307,12 @@ window.L = (function(){
 <div id="gate" class="gate hidden">
   <div class="logo"><svg class="i"><use href="#ic-lock"/></svg></div>
   <h1>Ivan &amp; Katie</h1>
-  <p>Shared ledger. Enter the household passphrase – the same one on both phones.</p>
-  <label class="lbl" for="g-pass">Passphrase</label>
-  <input id="g-pass" type="password" autocomplete="current-password" autocapitalize="none" placeholder="Four or five random words" enterkeyhint="go">
-  <label class="lbl">I am</label>
-  <div class="who" id="g-me">
-    <button data-i="0" class="on"><span class="avatar p0">I</span>Ivan</button>
-    <button data-i="1"><span class="avatar p1">K</span>Katie</button>
-  </div>
-  <button class="btn" id="g-go">Continue</button>
-  <button class="btn secondary hidden" id="g-create">Create a new ledger with this passphrase</button>
+  <p>Shared household ledger. Sign in with the Google account registered for the ledger.</p>
+  <button class="btn" id="g-google"><svg class="i" viewBox="0 0 24 24" style="stroke:none;fill:currentColor"><path d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.8 3-4.4 3-7.4z"/><path d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z"/><path d="M6.4 14a6 6 0 0 1 0-3.9V7.5H3.1a10 10 0 0 0 0 9z"/><path d="M12 6c1.5 0 2.8.5 3.8 1.5l2.8-2.8A10 10 0 0 0 3.1 7.5l3.3 2.6C7.2 7.8 9.4 6 12 6z"/></svg>Continue with Google</button>
   <div id="g-err" class="err hidden"></div>
-  <div id="g-standalone" class="hint hidden" style="text-align:center;margin-top:14px">Tip: in Safari tap Share → <b>Add to Home Screen</b>. Safari forgets the passphrase and offline data after 7 days without use; the home-screen app does not.</div>
-  <p class="hint" style="text-align:center;margin-top:18px">Nothing can be recovered if the passphrase is forgotten – store it somewhere safe.</p>
+  <button class="btn secondary hidden" id="g-switch">Sign out and use a different account</button>
+  <div id="g-standalone" class="hint hidden" style="text-align:center;margin-top:14px">Tip: tap Share → <b>Add to Home Screen</b> and open the app from there – it stays signed in and works offline.</div>
+  <p class="hint" style="text-align:center;margin-top:18px">Only Ivan’s and Katie’s Google accounts can open this ledger.</p>
 </div>
 
 <!-- ===================== APP ===================== -->
@@ -449,20 +442,15 @@ window.L = (function(){
   <div class="grab"></div>
   <div class="shead"><span></span><h3>Settings</h3><button class="close" data-close>Done</button></div>
   <div class="sbody">
-    <label class="lbl">This phone belongs to</label>
-    <div class="who" id="cfg-me">
-      <button data-i="0"><span class="avatar p0">I</span>Ivan</button>
-      <button data-i="1"><span class="avatar p1">K</span>Katie</button>
-    </div>
-    <div class="hint">Sets who "you" is, the default payer, and which way round the balance is shown.</div>
+    <label class="lbl">Signed in as</label>
+    <div class="card" style="margin:0;padding:12px 14px;display:flex;align-items:center;gap:12px"><span class="avatar" id="cfg-avatar">I</span><div style="min-width:0"><div id="cfg-name" style="font-weight:600">—</div><div class="small muted" id="cfg-email" style="overflow:hidden;text-overflow:ellipsis">—</div></div></div>
     <label class="lbl">Sync</label>
     <div class="card" style="margin:0;padding:4px 14px">
       <div class="fieldrow"><span class="k">Status</span><span class="v" id="cfg-sync">—</span></div>
       <div class="fieldrow"><span class="k">Entries</span><span class="v num" id="cfg-count">—</span></div>
-      <div class="fieldrow"><span class="k">Ledger id</span><span class="v num small" id="cfg-hid">—</span></div>
     </div>
-    <button class="btn danger" id="cfg-leave">Sign out of this phone</button>
-    <p class="hint" style="text-align:center">Signing out forgets the passphrase on this phone only. The ledger is untouched.</p>
+    <button class="btn danger" id="cfg-leave">Sign out</button>
+    <p class="hint" style="text-align:center">Signing out only affects this phone. The ledger is untouched.</p>
   </div>
 </div></div>
 
@@ -475,17 +463,21 @@ window.L = (function(){
 // These values are not secrets; access is governed by firestore.rules + the passphrase-derived ledger id.
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyD9CeCzFfNg5we7Jh8Tk8M1Ww2vA8f90_4",
-  authDomain: "splitwise-ebf16.firebaseapp.com",
+  authDomain: (/\.(web\.app|firebaseapp\.com)$/.test(location.hostname) ? location.hostname : "splitwise-ebf16.firebaseapp.com"),
   projectId: "splitwise-ebf16",
   appId: "1:730997287902:web:c26de72340918992cb8b4f"
 };
 // ==================================================================================
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, waitForPendingWrites, doc, collection, getDoc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const NAMES = ['Ivan','Katie'];
+// Google accounts allowed in, and which person each one is. Must match the list in firestore.rules.
+// Gmail ignores dots, so both spellings are listed in case the account's canonical address differs.
+const ACCOUNTS = { 'ivan.yang94@gmail.com':0, 'ivanyang94@gmail.com':0, 'katiekwong96@gmail.com':1 };
+const LEDGER_ID = 'main';
 const CATS = [['Groceries','🛒'],['Eating out','🍽️'],['Rent','🏠'],['Utilities','💡'],['Council tax','🏛️'],['Transport','🚇'],['Travel','✈️'],['Home','🛋️'],['Health','💊'],['Fun','🎟️'],['Gifts','🎁'],['Other','📎']];
 const CAT_ICON = Object.fromEntries(CATS); CAT_ICON['Settlement']='↔️'; CAT_ICON['Rent / mortgage']='🏠'; CAT_ICON['Entertainment']='🎟️';
 const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -500,7 +492,7 @@ const showErr = (id,m) => { const e=$(id); e.classList.toggle('hidden',!m); e.te
 const who = i => i===me ? 'You' : NAMES[i];
 const whoL = i => i===me ? 'you' : NAMES[i];
 
-let app, auth, db, hid, me=0, expenses=[], recurring=[], unsubs=[], loaded=false;
+let app, auth, db, hid=LEDGER_ID, me=0, account=null, expenses=[], recurring=[], unsubs=[], loaded=false;
 let editingId=null, editingRecId=null, insMonth=null, sAmtTouched=false;
 let curView='home', dirty={home:true,rec:true,ins:true}, rafId=0, sumsCache=null, balCache=null, shown=80;
 const PAGE=80;
@@ -612,46 +604,46 @@ function updatePreview(){
 }
 
 // ---------- Firebase boot ----------
+const provider=new GoogleAuthProvider(); provider.setCustomParameters({prompt:'select_account'});
 function boot(){
-  if(FIREBASE_CONFIG.apiKey==='PASTE_ME'){ $('gate').classList.remove('hidden'); showErr('g-err','Firebase config has not been filled in. Edit the FIREBASE_CONFIG block in index.html (see README).'); $('g-go').disabled=true; return; }
+  if(FIREBASE_CONFIG.apiKey==='PASTE_ME'){ $('gate').classList.remove('hidden'); showErr('g-err','Firebase config has not been filled in. Edit the FIREBASE_CONFIG block in index.html (see README).'); $('g-google').disabled=true; return; }
   app=initializeApp(FIREBASE_CONFIG); auth=getAuth(app);
   db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})}); // SDK falls back to memory cache itself if IndexedDB is unavailable
+  getRedirectResult(auth).catch(e=>showGate('Sign-in failed: '+(e.code||e.message)));
   onAuthStateChanged(auth, async user=>{
-    if(!user){ try{ await signInAnonymously(auth); }catch(e){ $('gate').classList.remove('hidden'); showErr('g-err','Sign-in failed: '+e.message+'. Enable Anonymous sign-in under Firebase Authentication → Sign-in method.'); } return; }
-    const saved=localStorage.getItem('ledger.hid');
-    if(saved){ hid=saved; me=Number(localStorage.getItem('ledger.me')||0); await openLedger(); }
-    else $('gate').classList.remove('hidden');
+    if(!user){ showGate(''); return; }
+    const email=(user.email||'').toLowerCase();
+    if(!(email in ACCOUNTS) || user.emailVerified===false){
+      showGate(`${email||'This account'} is not registered for this ledger.`); $('g-switch').classList.remove('hidden'); return;
+    }
+    account=user; me=ACCOUNTS[email];
+    $('cfg-avatar').className='avatar p'+me; $('cfg-avatar').textContent=NAMES[me][0]; $('cfg-name').textContent=NAMES[me]; $('cfg-email').textContent=email;
+    $('gate').classList.add('hidden');
+    try{ await openLedger(); }catch(e){ showGate('Could not open the ledger: '+(e.code||e.message)); }
   });
 }
+function showGate(err){ $('app').classList.add('hidden'); $('gate').classList.remove('hidden'); showErr('g-err',err); if(!err) $('g-switch').classList.add('hidden'); $('g-google').disabled=false; $('g-google').lastChild.textContent='Continue with Google'; }
 
 // ---------- Gate ----------
-segInit('g-me', i=>{ me=i; });
-let createConfirmed=null;
-$('g-pass').addEventListener('input',()=>{ createConfirmed=null; $('g-create').classList.add('hidden'); });
-$('g-create').onclick=()=>{ if(createConfirmed===$('g-pass').value) $('g-go').click(); };
 if(!(navigator.standalone||matchMedia('(display-mode: standalone)').matches)) $('g-standalone').classList.remove('hidden');
-$('g-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') $('g-go').click(); });
-$('g-go').onclick=async ()=>{
-  showErr('g-err',''); const p=$('g-pass').value;
-  if(p.length<12){ showErr('g-err','Passphrase must be at least 12 characters – four random words is ideal.'); return; }
-  $('g-go').disabled=true; $('g-go').textContent='Opening…';
-  try{
-    const h=await L.sha256hex(p); const ref=doc(db,'households',h); const snap=await getDoc(ref);
-    if(!snap.exists()){
-      if(createConfirmed!==p){ createConfirmed=p; $('g-create').classList.remove('hidden'); showErr('g-err','No ledger exists for this passphrase. If you are joining Ivan’s or Katie’s existing ledger, check the spelling. To start a brand-new ledger, use the button below.'); return; }
-      await setDoc(ref,{names:NAMES,created:serverTimestamp()});
-    }
-    hid=h; localStorage.setItem('ledger.hid',h); localStorage.setItem('ledger.me',String(me));
-    $('gate').classList.add('hidden'); await openLedger();
-  }catch(e){ showErr('g-err','Could not open the ledger: '+e.message); }
-  finally{ $('g-go').disabled=false; $('g-go').textContent='Continue'; }
+$('g-google').onclick=async ()=>{
+  showErr('g-err',''); $('g-google').disabled=true; $('g-google').lastChild.textContent='Signing in…';
+  try{ await signInWithPopup(auth,provider); }
+  catch(e){
+    // Popup unavailable (some in-app/standalone contexts) → fall back to a full-page redirect; same-origin on Firebase Hosting.
+    if(['auth/popup-blocked','auth/operation-not-supported-in-this-environment','auth/web-storage-unsupported'].includes(e.code)){ try{ await signInWithRedirect(auth,provider); return; }catch(e2){ e=e2; } }
+    if(e.code!=='auth/popup-closed-by-user' && e.code!=='auth/cancelled-popup-request') showErr('g-err','Sign-in failed: '+(e.code||e.message));
+    $('g-google').disabled=false; $('g-google').lastChild.textContent='Continue with Google';
+  }
 };
+$('g-switch').onclick=async ()=>{ await signOut(auth); showGate(''); };
 
 // ---------- Open ledger & subscribe ----------
 async function openLedger(){
   unsubs.forEach(u=>u()); unsubs=[]; loaded=false; shown=PAGE; sumsCache=balCache=null;
   $('app').classList.remove('hidden'); applyMe();
   const hRef=doc(db,'households',hid);
+  getDoc(hRef).then(snap=>{ if(!snap.exists()) write(setDoc(hRef,{names:NAMES,created:serverTimestamp()}),'ledger'); }).catch(e=>console.error(e));
   unsubs.push(onSnapshot(query(collection(hRef,'expenses'),orderBy('date','desc')), {includeMetadataChanges:true}, s=>{
     const dataChanged = !loaded || s.docChanges().length>0;
     if(dataChanged) expenses=s.docs.map(d=>({id:d.id,...d.data()}));
@@ -663,9 +655,8 @@ async function openLedger(){
     if($('sh-set').classList.contains('on')&&!sAmtTouched){ const b=L.balance(expenses); segSet('s-paid',b>0?1:0); setAmt('s-amt',b?Math.abs(b):null); updateSettleCtx(); }
   }, e=>{ $('activity').innerHTML=`<div class="err">Cannot read ledger: ${esc(e.message)}</div>`; }));
   unsubs.push(onSnapshot(collection(hRef,'recurring'), s=>{ recurring=s.docs.map(d=>({id:d.id,...d.data()})); invalidate('rec'); postDueRecurring(); }));
-  $('cfg-hid').textContent=hid.slice(0,8)+'…';
 }
-function applyMe(){ segSet('cfg-me',me); invalidate('home','rec','ins'); updatePreview(); updateSettleCtx(); }
+function applyMe(){ invalidate('home','rec','ins'); updatePreview(); updateSettleCtx(); }
 
 // ---------- Balance phrasing (from this phone's perspective) ----------
 function balanceParts(bal){ // bal>0 → person 1 owes person 0
@@ -901,8 +892,7 @@ const TITLES={home:'Home',rec:'Recurring',ins:'Insights'};
 function showView(v){ curView=v; $('fab').style.display = v==='home'?'':'none'; document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v)); document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); $('h-title').textContent=TITLES[v]; window.scrollTo({top:0}); paint(); }
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>showView(b.dataset.v));
 $('h-settings').onclick=()=>openSheet('sh-cfg');
-segInit('cfg-me', i=>{ me=i; localStorage.setItem('ledger.me',String(i)); applyMe(); toast(`This phone is now ${NAMES[i]}'s`); });
-$('cfg-leave').onclick=()=>{ localStorage.removeItem('ledger.hid'); location.reload(); };
+$('cfg-leave').onclick=async ()=>{ closeSheet('sh-cfg'); unsubs.forEach(u=>u()); unsubs=[]; expenses=[]; recurring=[]; loaded=false; await signOut(auth); };
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&hid) postDueRecurring(); });
 
 boot();
