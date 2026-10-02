@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // A ledger lives at /households/{hid}, hid = SHA-256(passphrase) as 64 hex chars.
+    // Any signed-in (anonymous) user may GET/CREATE/UPDATE a ledger whose id they know; nobody may LIST ledgers.
+    // Security rests on the passphrase being long and unguessable (2^256 id space).
+    //
+    // RECOMMENDED after first run: pin your single ledger by replacing `validHid(hid)` below with
+    //   hid == '<your 64-hex ledger id>'   (shown under ⚙ Settings → Ledger id; first 8 chars there, full id in
+    //   localStorage key `ledger.hid`). Then nobody can create junk ledgers in your project. Keep the real hash in the
+    //   Firebase console only, not in the public repo.
+    function validHid(hid) { return hid.matches('^[0-9a-f]{64}$'); }
+    function signedIn() { return request.auth != null; }
+
+    match /households/{hid} {
+      allow get:    if signedIn() && validHid(hid);
+      allow create: if signedIn() && validHid(hid) && validHousehold();
+      allow update: if signedIn() && validHid(hid) && validHousehold();
+      // no list, no delete
+
+      match /expenses/{id} {
+        allow get, list:      if signedIn() && validHid(hid);
+        allow create, update: if signedIn() && validHid(hid) && validExpense();
+        allow delete:         if signedIn() && validHid(hid);
+      }
+      match /recurring/{id} {
+        allow get, list:      if signedIn() && validHid(hid);
+        allow create, update: if signedIn() && validHid(hid) && validRecurring();
+        allow delete:         if signedIn() && validHid(hid);
+      }
+    }
+
+    function validHousehold() {
+      return request.resource.data.names is list && request.resource.data.names.size() == 2;
+    }
+    function validSplit(s) {
+      return s.type in ['equal', 'exact', 'percent', 'full']
+          && (s.type == 'equal' || (s.values is list && s.values.size() <= 2));
+    }
+    function shortString(v, max) { return v is string && v.size() <= max; }
+    function validExpense() {
+      let d = request.resource.data;
+      return d.type in ['expense', 'settlement']
+          && d.desc is string && d.desc.size() > 0 && d.desc.size() <= 200
+          && d.amount is int && d.amount > 0 && d.amount <= 100000000      // ≤ £1,000,000
+          && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && d.paidBy in [0, 1]
+          && d.shares is list && d.shares.size() == 2
+          && d.shares[0] is int && d.shares[1] is int && d.shares[0] >= 0 && d.shares[1] >= 0
+          && d.shares[0] + d.shares[1] == d.amount
+          && validSplit(d.split)
+          && (!('category' in d) || shortString(d.category, 40))
+          && (!('period' in d) || (d.period is string && d.period.matches('^[0-9]{4}-[0-9]{2}$')))
+          && (!('createdBy' in d) || shortString(d.createdBy, 40))
+          && (!('updatedBy' in d) || shortString(d.updatedBy, 40))
+          && (!('recurringId' in d) || shortString(d.recurringId, 64));
+    }
+    function validRecurring() {
+      let d = request.resource.data;
+      return d.desc is string && d.desc.size() > 0 && d.desc.size() <= 200
+          && d.amount is int && d.amount > 0 && d.amount <= 100000000
+          && d.day is int && d.day >= 1 && d.day <= 31
+          && d.paidBy in [0, 1]
+          && d.startMonth is string && d.startMonth.matches('^[0-9]{4}-[0-9]{2}$')
+          && (!('endMonth' in d) || d.endMonth == null || (d.endMonth is string && d.endMonth.matches('^[0-9]{4}-[0-9]{2}$')))
+          && (!('lastPosted' in d) || d.lastPosted == null || (d.lastPosted is string && d.lastPosted.matches('^[0-9]{4}-[0-9]{2}$')))
+          && d.active is bool
+          && validSplit(d.split)
+          && (!('category' in d) || shortString(d.category, 40));
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
